@@ -3,6 +3,7 @@
 #Práctica realizada por Francisco Jesús Díaz Pellejero 2ºB
 
 import socket
+import hashlib #Módulo perteneciente a la librería estándar
 
 ########################## Reto 0 ########################## 
 def challenge0():
@@ -129,6 +130,39 @@ def insertNumbers(data,num,num_index):
 def replyReverseNumbers(data,id):
     separator=" "
     return id+" "+separator.join(data)+ " --"
+
+
+
+########################## Reto 4 ##########################
+def challenge4(id):
+    sock=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    sock.connect(('rick',9000))
+    sock.send(id.encode("utf-8"))
+    result=hashlib.md5(readFileData(getFileSize(sock),sock))
+    sock.send(result.digest())
+    instructions=waitInstr(sock)
+    print(instructions)
+    return instructions
+
+def getFileSize(sock):
+    data=''
+    while 1:
+        newData=sock.recv(1).decode()
+        if newData == ':':
+            break
+        data+=newData
+    return int(data)
+
+def readFileData(size,sock):
+    data=b''
+    while 1:
+        newData=sock.recv(size)
+        size-=len(newData)
+        if size == 0:
+            data=data+newData   
+            break
+        data=data+newData
+    return data
 
 
 ############ Métodos usados en más de un reto ############# 
