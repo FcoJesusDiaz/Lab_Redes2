@@ -135,6 +135,7 @@ def replyReverseNumbers(data,id):
 
 ########################## Reto 4 ##########################
 def challenge4(id):
+    print("hola??\n")
     sock=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     sock.connect(('rick',9000))
     sock.send(id.encode("utf-8"))
@@ -190,6 +191,7 @@ def main():
     instructions=challenge1(getId(instructions))
     instructions=challenge2(getId(instructions))
     instructions=challenge3(getId(instructions))
+    instructions=challenge4(getId(instructions))
 
 if __name__=="__main__":
     main()
