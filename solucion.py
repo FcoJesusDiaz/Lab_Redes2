@@ -4,6 +4,10 @@
 
 import socket
 import hashlib #Módulo perteneciente a la librería estándar
+import struct
+import array
+import sys
+import base64
 
 ########################## Reto 0 ########################## 
 def challenge0():
@@ -42,16 +46,16 @@ def challenge2(id):
     sock.connect(('rick',3006))
     sock.send(replyCubes(countCubes(sock),id).encode("utf-8"))
     instructions=waitInstr(sock)
-    print(instructions)
+    #print(instructions)
     sock.close()
     return instructions
 
 def countCubes(sock):
     nCubes=0
-    turret='\u256D'+'('+'\u25C9'+')'+'\u256E'
-    companionCube='['+'\u2764'+']'
+    turret=bytes('\u256D'+'('+'\u25C9'+')'+'\u256E',"utf-8")
+    companionCube=bytes('['+'\u2764'+']',"utf-8")
     while 1:
-        data=sock.recv(10000).decode("utf-8","replace")
+        data=sock.recv(10000)
         index=data.find(turret)
         if index != -1:
             nCubes+=data.count(companionCube,0,index)
@@ -77,7 +81,7 @@ def challenge3(id):
     reverseNumbers(data)
     sock.send(replyReverseNumbers(data,id).encode("utf-8"))
     instructions=waitInstr(sock)
-    print(instructions)
+    #print(instructions)
     sock.close()
     return instructions
 
@@ -141,7 +145,7 @@ def challenge4(id):
     result=hashlib.md5(readFileData(getFileSize(sock),sock))
     sock.send(result.digest())
     instructions=waitInstr(sock)
-    print(instructions)
+    #print(instructions)
     return instructions
 
 def getFileSize(sock):
@@ -165,6 +169,33 @@ def readFileData(size,sock):
     return data
 
 
+########################## Reto 5 ##########################
+def challenge5(id):
+    sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+    pseudoHeader=struct.pack("!3sHBH",b'YAP',0,0,1)
+    payload=base64.b64encode(id.encode())
+    msg=struct.pack("!3sHBHH",b'YAP',0,0,cksum(pseudoHeader+payload),1)+payload
+    sock.sendto(msg,('rick',6001))
+    instructions,client=sock.recvfrom(10000)
+    instructions=base64.b64decode(instructions[10:]+b'============').decode()
+    print(instructions)
+    return instructions
+
+def cksum(pkt):
+    # type: (bytes) -> int
+    if len(pkt) % 2 == 1:
+        pkt += b'\0'
+    s = sum(array.array('H', pkt))
+    s = (s >> 16) + (s & 0xffff)
+    s += s >> 16
+    s = ~s
+
+    if sys.byteorder == 'little':
+        s = ((s >> 8) & 0xff) | s << 8
+
+    return s & 0xffff
+
+
 ############ Métodos usados en más de un reto ############# 
 
 def waitInstr(sock):
@@ -174,6 +205,7 @@ def waitInstr(sock):
         if not newData:
             break
         instr=newData.decode("utf-8","replace")
+        print(instr)
     return instr
 
 def getId(instructions):
@@ -191,6 +223,7 @@ def main():
     instructions=challenge2(getId(instructions))
     instructions=challenge3(getId(instructions))
     instructions=challenge4(getId(instructions))
+    instructions=challenge5(getId(instructions))
 
 if __name__=="__main__":
     main()
