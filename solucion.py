@@ -3,6 +3,13 @@
 #Práctica realizada por Francisco Jesús Díaz Pellejero 2ºB
 
 import socket
+import hashlib #Módulo perteneciente a la librería estándar
+import struct
+import array
+import sys
+import base64
+import urllib.request
+import threading
 
 ########################## Reto 0 ########################## 
 def challenge0():
@@ -41,21 +48,22 @@ def challenge2(id):
     sock.connect(('rick',3006))
     sock.send(replyCubes(countCubes(sock),id).encode("utf-8"))
     instructions=waitInstr(sock)
-    print(instructions)
+    #print(instructions)
     sock.close()
     return instructions
 
 def countCubes(sock):
     nCubes=0
-    turret='\u256D'+'('+'\u25C9'+')'+'\u256E'
-    companionCube='['+'\u2764'+']'
+    turret=bytes('\u256D'+'('+'\u25C9'+')'+'\u256E',"utf-8")
+    companionCube=bytes('['+'\u2764'+']',"utf-8")
+    index=-1
+    data=b''
     while 1:
-        data=sock.recv(10000).decode("utf-8","replace")
+        newData=sock.recv(10000)
+        data+=newData
         index=data.find(turret)
-        if index != -1:
-            nCubes+=data.count(companionCube,0,index)
-            break
-        nCubes+=data.count(companionCube)
+        if index != -1: break
+    nCubes=data.count(companionCube,0,index)
     return nCubes
 
 def replyCubes(nCubes,id):
@@ -76,7 +84,7 @@ def challenge3(id):
     reverseNumbers(data)
     sock.send(replyReverseNumbers(data,id).encode("utf-8"))
     instructions=waitInstr(sock)
-    print(instructions)
+    #print(instructions)
     sock.close()
     return instructions
 
@@ -131,6 +139,126 @@ def replyReverseNumbers(data,id):
     return id+" "+separator.join(data)+ " --"
 
 
+
+########################## Reto 4 ##########################
+def challenge4(id):
+    sock=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    sock.connect(('rick',9000))
+    sock.send(id.encode("utf-8"))
+    result=hashlib.md5(readFileData(getFileSize(sock),sock))
+    sock.send(result.digest())
+    instructions=waitInstr(sock)
+    sock.close()
+    return instructions
+
+def getFileSize(sock):
+    data=''
+    while 1:
+        newData=sock.recv(1).decode()
+        if newData == ':':
+            break
+        data+=newData
+    return int(data)
+
+def readFileData(size,sock):
+    data=b''
+    while 1:
+        newData=sock.recv(size)
+        data=data+newData   
+        size-=len(newData)
+        if size == 0:
+            break
+    return data
+
+
+########################## Reto 5 ##########################
+def challenge5(id):
+    sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+    pseudoHeader=struct.pack("!3sHBH",b'YAP',0,0,1)
+    payload=base64.b64encode(id.encode())
+    msg=struct.pack("!3sHBHH",b'YAP',0,0,cksum(pseudoHeader+payload),1)+payload
+    sock.sendto(msg,('rick',6001))
+    instructions,client=sock.recvfrom(10000)
+    instructions=base64.b64decode(instructions[10:]+b'============').decode()
+    print(instructions)
+    sock.close()
+    return instructions
+
+def cksum(pkt):
+    # type: (bytes) -> int
+    if len(pkt) % 2 == 1:
+        pkt += b'\0'
+    s = sum(array.array('H', pkt))
+    s = (s >> 16) + (s & 0xffff)
+    s += s >> 16
+    s = ~s
+
+    if sys.byteorder == 'little':
+        s = ((s >> 8) & 0xff) | s << 8
+
+    return s & 0xffff
+
+
+########################## Reto 6 ##########################
+def challenge6(id):
+    sockServer=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    sockClient=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+
+    sockServer.settimeout(5.0)
+    sockServer.bind(('',4298))
+    sockServer.listen(5)
+
+    sockClient.connect(('rick',8002))
+    sockClient.send((id+" 4298").encode("utf-8"))
+    sockClient.close()
+
+    n=0
+    try:
+        while 1:
+            child_sock,client=sockServer.accept()
+            n+=1
+
+            while 1:
+                if threading.active_count()<=10:
+                    t = threading.Thread(target=handle,args=(child_sock,client,n))
+                    t.start()
+                    break
+    except socket.timeout:
+        print("hola\n")
+        sockServer.close()
+
+def handle(sock,client,n):
+    #print('Client connected', n, client)
+   
+    data = sock.recv(2048)
+
+    if data.split()[0]==b'POST':
+        instructions=data[177:].decode()
+        print(instructions)
+        theEnd(getId(instructions))
+
+    else:
+        filename=data.split()[1].decode()
+        url = "http://rick:81/rfc" + filename
+        archivo = urllib.request.urlopen(url)
+        texto = archivo.read()
+        sock.send(b'HTTP/1.1 200 OK\n')
+        sock.send(b'Content-Type: text/plain\n')
+        sock.send(b'\n')
+        sock.send(texto)
+        sock.close()
+       # print("[CLIENTE] ",n," terminando...")
+
+
+########################## Reto 7 ##########################
+
+def theEnd(id):
+    finalSocket=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    finalSocket.connect(('rick',33333))
+    finalSocket.send(id.encode())
+    print((finalSocket.recv(1048)).decode())
+
+
 ############ Métodos usados en más de un reto ############# 
 
 def waitInstr(sock):
@@ -140,6 +268,7 @@ def waitInstr(sock):
         if not newData:
             break
         instr=newData.decode("utf-8","replace")
+        print(instr)
     return instr
 
 def getId(instructions):
@@ -156,6 +285,9 @@ def main():
     instructions=challenge1(getId(instructions))
     instructions=challenge2(getId(instructions))
     instructions=challenge3(getId(instructions))
+    instructions=challenge4(getId(instructions))
+    instructions=challenge5(getId(instructions))
+    challenge6(getId(instructions))
 
 if __name__=="__main__":
     main()
