@@ -8,6 +8,8 @@ import struct
 import array
 import sys
 import base64
+import urllib.request
+import threading
 
 ########################## Reto 0 ########################## 
 def challenge0():
@@ -54,13 +56,14 @@ def countCubes(sock):
     nCubes=0
     turret=bytes('\u256D'+'('+'\u25C9'+')'+'\u256E',"utf-8")
     companionCube=bytes('['+'\u2764'+']',"utf-8")
+    index=-1
+    data=b''
     while 1:
-        data=sock.recv(10000)
+        newData=sock.recv(10000)
+        data+=newData
         index=data.find(turret)
-        if index != -1:
-            nCubes+=data.count(companionCube,0,index)
-            break
-        nCubes+=data.count(companionCube)
+        if index != -1: break
+    nCubes=data.count(companionCube,0,index)
     return nCubes
 
 def replyCubes(nCubes,id):
@@ -145,7 +148,7 @@ def challenge4(id):
     result=hashlib.md5(readFileData(getFileSize(sock),sock))
     sock.send(result.digest())
     instructions=waitInstr(sock)
-    #print(instructions)
+    sock.close()
     return instructions
 
 def getFileSize(sock):
@@ -161,11 +164,10 @@ def readFileData(size,sock):
     data=b''
     while 1:
         newData=sock.recv(size)
+        data=data+newData   
         size-=len(newData)
         if size == 0:
-            data=data+newData   
             break
-        data=data+newData
     return data
 
 
@@ -179,6 +181,7 @@ def challenge5(id):
     instructions,client=sock.recvfrom(10000)
     instructions=base64.b64decode(instructions[10:]+b'============').decode()
     print(instructions)
+    sock.close()
     return instructions
 
 def cksum(pkt):
@@ -194,6 +197,66 @@ def cksum(pkt):
         s = ((s >> 8) & 0xff) | s << 8
 
     return s & 0xffff
+
+
+########################## Reto 6 ##########################
+def challenge6(id):
+    sockServer=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    sockClient=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+
+    sockServer.settimeout(5.0)
+    sockServer.bind(('',4298))
+    sockServer.listen(5)
+
+    sockClient.connect(('rick',8002))
+    sockClient.send((id+" 4298").encode("utf-8"))
+    sockClient.close()
+
+    n=0
+    try:
+        while 1:
+            child_sock,client=sockServer.accept()
+            n+=1
+
+            while 1:
+                if threading.active_count()<=10:
+                    t = threading.Thread(target=handle,args=(child_sock,client,n))
+                    t.start()
+                    break
+    except socket.timeout:
+        print("hola\n")
+        sockServer.close()
+
+def handle(sock,client,n):
+    #print('Client connected', n, client)
+   
+    data = sock.recv(2048)
+
+    if data.split()[0]==b'POST':
+        instructions=data[177:].decode()
+        print(instructions)
+        theEnd(getId(instructions))
+
+    else:
+        filename=data.split()[1].decode()
+        url = "http://rick:81/rfc" + filename
+        archivo = urllib.request.urlopen(url)
+        texto = archivo.read()
+        sock.send(b'HTTP/1.1 200 OK\n')
+        sock.send(b'Content-Type: text/plain\n')
+        sock.send(b'\n')
+        sock.send(texto)
+        sock.close()
+       # print("[CLIENTE] ",n," terminando...")
+
+
+########################## Reto 7 ##########################
+
+def theEnd(id):
+    finalSocket=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    finalSocket.connect(('rick',33333))
+    finalSocket.send(id.encode())
+    print((finalSocket.recv(1048)).decode())
 
 
 ############ Métodos usados en más de un reto ############# 
@@ -224,6 +287,7 @@ def main():
     instructions=challenge3(getId(instructions))
     instructions=challenge4(getId(instructions))
     instructions=challenge5(getId(instructions))
+    challenge6(getId(instructions))
 
 if __name__=="__main__":
     main()
